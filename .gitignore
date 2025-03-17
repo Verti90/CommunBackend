@@ -1,0 +1,9 @@
+# Virtual environment
+venv/
+__pycache__/
+db.sqlite3
+*.pyc
+*.pyo
+*.pyd
+media/
+.env
