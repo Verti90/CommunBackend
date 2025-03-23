@@ -30,8 +30,14 @@ def login_user(request):
     if user is not None:
         refresh = RefreshToken.for_user(user)
         return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
+            'user': {
+                'username': user.username,
+                'email': user.email,
+            },
+            'token': {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+            }
         })
     else:
         return Response({'error': 'Invalid credentials'}, status=400)
