@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .auth_views import register_user, login_user
 from .views import (
     TransportationRequestViewSet, MealSelectionViewSet, ActivityViewSet,
-    MaintenanceRequestViewSet, AlertViewSet, WellnessReminderViewSet, BillingStatementViewSet, UserViewSet, profile_view
+    MaintenanceRequestViewSet, AlertViewSet, WellnessReminderViewSet, BillingStatementViewSet, UserViewSet, profile_view, RegisterView
 )
 
 router = DefaultRouter()
@@ -18,7 +18,7 @@ router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
     path('', include(router.urls)),
-    path("register/", register_user, name="register"),
+    path("register/", RegisterView.as_view(), name="register"),
     path("login/", login_user, name="login"),
     path("activities/<int:pk>/signup/", ActivityViewSet.as_view({'post': 'signup'}), name="activity-signup"),
     path("activities/<int:pk>/unregister/", ActivityViewSet.as_view({'post': 'unregister'}), name="activity-unregister"),

@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.utils.timezone import make_aware, is_aware, is_naive
 from datetime import datetime, timedelta
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, generics
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.contrib.auth.models import User
@@ -118,6 +118,10 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAdminUser]
+
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
 
 @api_view(['GET'])
 def profile_view(request):
