@@ -3,7 +3,7 @@ from django.utils.timezone import make_aware, is_aware, is_naive
 from datetime import datetime, timedelta
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework.decorators import api_view
 from django.contrib.auth.models import User
 from .models import (
     TransportationRequest, MealSelection, Activity, MaintenanceRequest, 
@@ -118,3 +118,9 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAdminUser]
+
+@api_view(['GET'])
+def profile_view(request):
+    user = request.user
+    serializer = UserSerializer(user)
+    return Response(serializer.data)
