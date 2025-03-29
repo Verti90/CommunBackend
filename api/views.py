@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from rest_framework import viewsets, permissions, status, generics
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, action
+from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from .models import (
     TransportationRequest, MealSelection, Activity, MaintenanceRequest, 
@@ -53,6 +54,9 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
             while current_date <= end_date:
                 if current_date >= start_date:
+                    participants_list = list(activity.participants.values_list('id', flat=True))
+                    print(f"Expanded activity {activity.id} on {current_date}: participants = {participants_list}")
+
                     expanded_activities.append({
                         'id': activity.id,
                         'name': activity.name,
@@ -60,6 +64,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
                         'date_time': current_date,
                         'location': activity.location,
                         'recurrence': activity.recurrence,
+                        'participants': participants_list,
                     })
 
                 if activity.recurrence == "Daily":
@@ -78,23 +83,43 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
         return Response(expanded_activities)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def signup(self, request, pk=None):
         activity = self.get_object()
-        if request.user in activity.participants.all():
-            return Response({'detail': 'Already signed up.'}, status=status.HTTP_400_BAD_REQUEST)
+        print("User in signup:", request.user, request.user.id)
 
-        activity.participants.add(request.user)
-        return Response({'status': 'signed up'}, status=status.HTTP_200_OK)
+        try:
+            if activity.participants.filter(id=request.user.id).exists():
+                return Response({'detail': 'Already signed up.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'])
+            activity.participants.add(request.user)
+            activity.save()
+            print("User successfully signed up.")
+
+            return Response({'status': 'signed up'}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print("Signup error:", str(e))
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def unregister(self, request, pk=None):
         activity = self.get_object()
-        if request.user not in activity.participants.all():
-            return Response({'detail': 'Not registered for activity.'}, status=status.HTTP_400_BAD_REQUEST)
+        print("User in unregister:", request.user, request.user.id)
 
-        activity.participants.remove(request.user)
-        return Response({'status': 'unregistered'}, status=status.HTTP_200_OK)
+        try:
+            if not activity.participants.filter(id=request.user.id).exists():
+                return Response({'detail': 'Not registered for activity.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            activity.participants.remove(request.user)
+            activity.save()
+            print("User successfully unregistered.")
+
+            return Response({'status': 'unregistered'}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print("Unregister error:", str(e))
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
