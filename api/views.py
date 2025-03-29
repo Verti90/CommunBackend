@@ -1,9 +1,9 @@
 from django.shortcuts import render
-from django.utils.timezone import make_aware, is_aware, is_naive
+from django.utils.timezone import make_aware, is_naive
 from datetime import datetime, timedelta
-from rest_framework import viewsets, permissions, generics
+from rest_framework import viewsets, permissions, status, generics
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from django.contrib.auth.models import User
 from .models import (
     TransportationRequest, MealSelection, Activity, MaintenanceRequest, 
@@ -37,18 +37,11 @@ class ActivityViewSet(viewsets.ModelViewSet):
         start_date_str = request.GET.get("start_date")
         end_date_str = request.GET.get("end_date")
 
-        if start_date_str and end_date_str:
-            try:
-                start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-                end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
-                start_date = make_aware(start_date) if not is_aware(start_date) else start_date
-                end_date = make_aware(datetime.combine(end_date, datetime.max.time()))
-            except ValueError:
-                return Response({"error": "Invalid date format. Use YYYY-MM-DD."}, status=400)
-        else:
-            now = datetime.now()
-            start_date = make_aware(now) if is_naive(now) else now
-            end_date = start_date + timedelta(days=30)
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d") if start_date_str else datetime.now()
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d") if end_date_str else start_date + timedelta(days=30)
+
+        start_date = make_aware(start_date)
+        end_date = make_aware(datetime.combine(end_date, datetime.max.time()))
 
         activities = Activity.objects.all()
         expanded_activities = []
@@ -60,33 +53,51 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
             while current_date <= end_date:
                 if current_date >= start_date:
-                    cloned_activity = Activity(
-                        id=activity.id,  # Keeping ID for reference
-                        name=activity.name,
-                        description=activity.description,
-                        date_time=current_date,
-                        location=activity.location,
-                        recurrence=activity.recurrence,
-                    )
-                    cloned_activity.save()
-                    cloned_activity.participants.set(activity.participants.all())
-                    expanded_activities.append(cloned_activity)
+                    expanded_activities.append({
+                        'id': activity.id,
+                        'name': activity.name,
+                        'description': activity.description,
+                        'date_time': current_date,
+                        'location': activity.location,
+                        'recurrence': activity.recurrence,
+                    })
 
-                # Handle recurrence logic
                 if activity.recurrence == "Daily":
                     current_date += timedelta(days=1)
                 elif activity.recurrence == "Weekly":
                     current_date += timedelta(weeks=1)
                 elif activity.recurrence == "Monthly":
-                    current_date += timedelta(weeks=4)
+                    month = current_date.month + 1 if current_date.month < 12 else 1
+                    year = current_date.year if current_date.month < 12 else current_date.year + 1
+                    try:
+                        current_date = current_date.replace(year=year, month=month)
+                    except ValueError:
+                        current_date += timedelta(weeks=4)
                 else:
-                    break  # No recurrence, break after first iteration
+                    break
 
-        serializer = ActivitySerializer(expanded_activities, many=True)
-        return Response(serializer.data)
+        return Response(expanded_activities)
+
+    @action(detail=True, methods=['post'])
+    def signup(self, request, pk=None):
+        activity = self.get_object()
+        if request.user in activity.participants.all():
+            return Response({'detail': 'Already signed up.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        activity.participants.add(request.user)
+        return Response({'status': 'signed up'}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def unregister(self, request, pk=None):
+        activity = self.get_object()
+        if request.user not in activity.participants.all():
+            return Response({'detail': 'Not registered for activity.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        activity.participants.remove(request.user)
+        return Response({'status': 'unregistered'}, status=status.HTTP_200_OK)
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
-    queryset = MaintenanceRequest.objects.all()  # Explicitly define queryset
+    queryset = MaintenanceRequest.objects.all()
     serializer_class = MaintenanceRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -125,6 +136,5 @@ class RegisterView(generics.CreateAPIView):
 
 @api_view(['GET'])
 def profile_view(request):
-    user = request.user
-    serializer = UserSerializer(user)
+    serializer = UserSerializer(request.user)
     return Response(serializer.data)
