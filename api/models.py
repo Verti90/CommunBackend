@@ -42,6 +42,14 @@ class Activity(models.Model):
     def __str__(self):
         return self.name
 
+class ActivityInstance(models.Model):
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
+    occurrence_date = models.DateTimeField()
+    participants = models.ManyToManyField(User, blank=True)
+
+    def __str__(self):
+        return f"{self.activity.name} - {self.occurrence_date}"
+
 class MaintenanceRequest(models.Model):
     resident_name = models.CharField(max_length=100)
     request_type = models.CharField(max_length=50, choices=[('Maintenance', 'Maintenance'), ('Housekeeping', 'Housekeeping')])

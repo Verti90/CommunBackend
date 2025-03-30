@@ -1,18 +1,21 @@
-from django.shortcuts import render
+from rest_framework import viewsets, permissions, status
+from rest_framework.response import Response
+from rest_framework.decorators import action
 from django.utils.timezone import make_aware, is_naive
 from datetime import datetime, timedelta
-from rest_framework import viewsets, permissions, status, generics
-from rest_framework.response import Response
-from rest_framework.decorators import api_view, action
-from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
+from django.shortcuts import render
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import AllowAny
+
 from .models import (
-    TransportationRequest, MealSelection, Activity, MaintenanceRequest, 
-    Alert, WellnessReminder, BillingStatement
+    TransportationRequest, MealSelection, Activity, MaintenanceRequest,
+    Alert, WellnessReminder, BillingStatement, ActivityInstance
 )
 from .serializers import (
-    TransportationRequestSerializer, MealSelectionSerializer, ActivitySerializer, 
-    MaintenanceRequestSerializer, AlertSerializer, WellnessReminderSerializer, 
+    TransportationRequestSerializer, MealSelectionSerializer, ActivitySerializer,
+    MaintenanceRequestSerializer, AlertSerializer, WellnessReminderSerializer,
     BillingStatementSerializer, UserSerializer
 )
 
@@ -28,6 +31,74 @@ class MealSelectionViewSet(viewsets.ModelViewSet):
     queryset = MealSelection.objects.all()
     serializer_class = MealSelectionSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+class MaintenanceRequestViewSet(viewsets.ModelViewSet):
+    queryset = MaintenanceRequest.objects.all()
+    serializer_class = MaintenanceRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class AlertViewSet(viewsets.ModelViewSet):
+    queryset = Alert.objects.all()
+    serializer_class = AlertSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class WellnessReminderViewSet(viewsets.ModelViewSet):
+    queryset = WellnessReminder.objects.all()
+    serializer_class = WellnessReminderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class BillingStatementViewSet(viewsets.ModelViewSet):
+    queryset = BillingStatement.objects.all()
+    serializer_class = BillingStatementSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class RegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            user.set_password(request.data['password'])
+            user.save()
+            return Response({'status': 'user created'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        user = User.objects.filter(username=username).first()
+        if user and user.check_password(password):
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'token': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                },
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email
+                }
+            }, status=status.HTTP_200_OK)
+
+        return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+class ProfileView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class ActivityViewSet(viewsets.ModelViewSet):
     queryset = Activity.objects.all()
@@ -54,8 +125,10 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
             while current_date <= end_date:
                 if current_date >= start_date:
-                    participants_list = list(activity.participants.values_list('id', flat=True))
-                    print(f"Expanded activity {activity.id} on {current_date}: participants = {participants_list}")
+                    instance, _ = ActivityInstance.objects.get_or_create(
+                        activity=activity, occurrence_date=current_date
+                    )
+                    participants_list = list(instance.participants.values_list('id', flat=True))
 
                     expanded_activities.append({
                         'id': activity.id,
@@ -83,83 +156,34 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
         return Response(expanded_activities)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def signup(self, request, pk=None):
+        occurrence_date_str = request.data.get('occurrence_date')
+        occurrence_date = datetime.fromisoformat(occurrence_date_str)
+
         activity = self.get_object()
-        print("User in signup:", request.user, request.user.id)
+        instance, _ = ActivityInstance.objects.get_or_create(
+            activity=activity, occurrence_date=occurrence_date
+        )
 
-        try:
-            if activity.participants.filter(id=request.user.id).exists():
-                return Response({'detail': 'Already signed up.'}, status=status.HTTP_400_BAD_REQUEST)
+        if instance.participants.filter(id=request.user.id).exists():
+            return Response({'detail': 'Already signed up.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            activity.participants.add(request.user)
-            activity.save()
-            print("User successfully signed up.")
+        instance.participants.add(request.user)
+        return Response({'status': 'signed up'}, status=status.HTTP_200_OK)
 
-            return Response({'status': 'signed up'}, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            print("Signup error:", str(e))
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def unregister(self, request, pk=None):
-        activity = self.get_object()
-        print("User in unregister:", request.user, request.user.id)
+        occurrence_date_str = request.data.get('occurrence_date')
+        occurrence_date = datetime.fromisoformat(occurrence_date_str)
 
+        activity = self.get_object()
         try:
-            if not activity.participants.filter(id=request.user.id).exists():
+            instance = ActivityInstance.objects.get(activity=activity, occurrence_date=occurrence_date)
+            if not instance.participants.filter(id=request.user.id).exists():
                 return Response({'detail': 'Not registered for activity.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            activity.participants.remove(request.user)
-            activity.save()
-            print("User successfully unregistered.")
-
+            instance.participants.remove(request.user)
             return Response({'status': 'unregistered'}, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            print("Unregister error:", str(e))
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-class MaintenanceRequestViewSet(viewsets.ModelViewSet):
-    queryset = MaintenanceRequest.objects.all()
-    serializer_class = MaintenanceRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_staff:
-            return MaintenanceRequest.objects.all()
-        return MaintenanceRequest.objects.filter(submitter=user)
-
-    def perform_create(self, serializer):
-        serializer.save(submitter=self.request.user)
-
-class AlertViewSet(viewsets.ModelViewSet):
-    queryset = Alert.objects.all()
-    serializer_class = AlertSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-class WellnessReminderViewSet(viewsets.ModelViewSet):
-    queryset = WellnessReminder.objects.all()
-    serializer_class = WellnessReminderSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-class BillingStatementViewSet(viewsets.ModelViewSet):
-    queryset = BillingStatement.objects.all()
-    serializer_class = BillingStatementSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [permissions.IsAdminUser]
-
-class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-
-@api_view(['GET'])
-def profile_view(request):
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data)
+        except ActivityInstance.DoesNotExist:
+            return Response({'detail': 'Activity instance not found.'}, status=status.HTTP_400_BAD_REQUEST)
