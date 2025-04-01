@@ -21,9 +21,10 @@ def login_view(request):
                 "refresh": str(refresh)
             },
             "user": {
-                "id": user.id,  # ✅ include user ID here
+                "id": user.id,
                 "email": user.email,
-                "username": user.username
+                "username": user.username,
+		"role": "staff" if user.is_staff else "resident"
             }
         })
     else:
