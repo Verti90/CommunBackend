@@ -4,15 +4,18 @@ from .models import (
     MaintenanceRequest, Alert, WellnessReminder, BillingStatement
 )
 from django.contrib.auth.models import User
+from django.utils.timezone import is_naive
+from pytz import timezone as pytz_timezone, utc
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'password']
         extra_kwargs = {
-	    'password': {'write_only': True},
- 	    'is_staff': {'read_only': True},
-	}
+            'password': {'write_only': True},
+            'is_staff': {'read_only': True},
+        }
+
     def create(self, validated_data):
         user = User.objects.create_user(
             username=validated_data['username'],
@@ -39,6 +42,12 @@ class MealSelectionSerializer(serializers.ModelSerializer):
         return obj.menu_item.split('\n') if obj.menu_item else []
 
 class ActivitySerializer(serializers.ModelSerializer):
+    def validate_date_time(self, value):
+        if is_naive(value):
+            central = pytz_timezone('America/Chicago')
+            value = central.localize(value)
+        return value.astimezone(utc)  # ✅ always convert to UTC for storage
+
     class Meta:
         model = Activity
         fields = '__all__'

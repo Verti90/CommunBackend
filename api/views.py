@@ -134,7 +134,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
                         'id': activity.id,
                         'name': activity.name,
                         'description': activity.description,
-                        'date_time': current_date,
+                        'date_time': current_date.isoformat(),
                         'location': activity.location,
                         'recurrence': activity.recurrence,
                         'participants': participants_list,
