@@ -43,10 +43,7 @@ class MealSelectionSerializer(serializers.ModelSerializer):
 
 class ActivitySerializer(serializers.ModelSerializer):
     def validate_date_time(self, value):
-        if is_naive(value):
-            central = pytz_timezone('America/Chicago')
-            value = central.localize(value)
-        return value.astimezone(utc)  # ✅ always convert to UTC for storage
+        return value
 
     class Meta:
         model = Activity
