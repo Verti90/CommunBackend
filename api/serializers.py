@@ -41,9 +41,15 @@ class MealSelectionSerializer(serializers.ModelSerializer):
     def get_items(self, obj):
         return obj.menu_item.split('\n') if obj.menu_item else []
 
+from django.utils.timezone import make_aware, is_naive
+import pytz
+
 class ActivitySerializer(serializers.ModelSerializer):
     def validate_date_time(self, value):
-        return value
+        if is_naive(value):
+            local_tz = pytz.timezone('America/Chicago')  # Explicitly your timezone
+            value = make_aware(value, local_tz)
+        return value.astimezone(pytz.utc)
 
     class Meta:
         model = Activity

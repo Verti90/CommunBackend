@@ -8,6 +8,8 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny
+import pytz
+from pytz import utc
 
 from .models import (
     TransportationRequest, MealSelection, Activity, MaintenanceRequest,
@@ -108,12 +110,13 @@ class ActivityViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         start_date_str = request.GET.get("start_date")
         end_date_str = request.GET.get("end_date")
+        local_tz = pytz.timezone('America/Chicago')
 
-        start_date = datetime.strptime(start_date_str, "%Y-%m-%d") if start_date_str else datetime.now()
-        end_date = datetime.strptime(end_date_str, "%Y-%m-%d") if end_date_str else start_date + timedelta(days=30)
+        start_date = make_aware(datetime.strptime(start_date_str, "%Y-%m-%d"), local_tz) if start_date_str else datetime.now(local_tz)
+        end_date = make_aware(datetime.combine(datetime.strptime(end_date_str, "%Y-%m-%d"), datetime.max.time()), local_tz) if end_date_str else start_date + timedelta(days=30)
 
-        start_date = make_aware(start_date)
-        end_date = make_aware(datetime.combine(end_date, datetime.max.time()))
+        start_date_utc = start_date.astimezone(utc)
+        end_date_utc = end_date.astimezone(utc)
 
         activities = Activity.objects.all()
         expanded_activities = []
@@ -121,10 +124,10 @@ class ActivityViewSet(viewsets.ModelViewSet):
         for activity in activities:
             current_date = activity.date_time
             if is_naive(current_date):
-                current_date = make_aware(current_date)
+                current_date = make_aware(current_date, utc)
 
-            while current_date <= end_date:
-                if current_date >= start_date:
+            while current_date <= end_date_utc:
+                if current_date >= start_date_utc:
                     instance, _ = ActivityInstance.objects.get_or_create(
                         activity=activity, occurrence_date=current_date
                     )
@@ -134,7 +137,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
                         'id': activity.id,
                         'name': activity.name,
                         'description': activity.description,
-                        'date_time': current_date.isoformat(),
+                        'date_time': current_date.astimezone(local_tz).isoformat(),
                         'location': activity.location,
                         'recurrence': activity.recurrence,
                         'participants': participants_list,
