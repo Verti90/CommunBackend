@@ -171,7 +171,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
             activity=activity,
             occurrence_date=activity.date_time
         )
- 
+
     @action(detail=True, methods=["post"], url_path="signup")
     def signup(self, request, pk=None):
         from django.utils.dateparse import parse_datetime
@@ -191,8 +191,13 @@ class ActivityViewSet(viewsets.ModelViewSet):
             activity=activity,
             occurrence_date=parsed_date
         )
+
+        if activity.capacity > 0 and instance.participants.count() >= activity.capacity:
+            return Response({"error": "Activity is full"}, status=400)
+
         instance.participants.add(user)
         return Response({"status": "signed up"})
+
 
     @action(detail=True, methods=["post"], url_path="unregister")
     def unregister(self, request, pk=None):

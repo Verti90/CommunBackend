@@ -38,6 +38,7 @@ class Activity(models.Model):
         choices=RecurrenceChoices.choices,
         default=RecurrenceChoices.NONE
     )
+    capacity = models.PositiveIntegerField(default=0)  # 0 = unlimited
 
     def __str__(self):
         return self.name
