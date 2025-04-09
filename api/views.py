@@ -107,45 +107,32 @@ class ActivityViewSet(viewsets.ModelViewSet):
     serializer_class = ActivitySerializer
     permission_classes = [permissions.IsAuthenticated]
 
-def list(self, request, *args, **kwargs):
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
-    local_tz = pytz.timezone('America/Chicago')
+    def list(self, request, *args, **kwargs):
+        start_date_str = request.GET.get("start_date")
+        end_date_str = request.GET.get("end_date")
+        local_tz = pytz.timezone('America/Chicago')
 
-    if start_date_str:
-        start_date = make_aware(datetime.strptime(start_date_str, "%Y-%m-%d"), local_tz)
-    else:
-        start_date = datetime.now(local_tz)
+        start_date = make_aware(datetime.strptime(start_date_str, "%Y-%m-%d"), local_tz) if start_date_str else datetime.now(local_tz)
+        end_date = make_aware(datetime.combine(datetime.strptime(end_date_str, "%Y-%m-%d"), datetime.max.time()), local_tz) if end_date_str else start_date + timedelta(days=30)
 
-    if end_date_str:
-        end_date = make_aware(datetime.combine(datetime.strptime(end_date_str, "%Y-%m-%d"), datetime.max.time()), local_tz)
-    else:
-        end_date = start_date + timedelta(days=30)
+        start_date_utc = start_date.astimezone(utc)
+        end_date_utc = end_date.astimezone(utc)
 
-    start_date_utc = start_date.astimezone(utc)
-    end_date_utc = end_date.astimezone(utc)
+        activities = Activity.objects.all()
+        expanded_activities = []
 
-    activities = Activity.objects.all()
-    expanded_activities = []
+        for activity in activities:
+            current_date = activity.date_time
+            if is_naive(current_date):
+                current_date = make_aware(current_date, utc)
 
-    for activity in activities:
-        current_date = activity.date_time
-        if is_naive(current_date):
-            current_date = make_aware(current_date, utc)
+            while current_date <= end_date_utc:
+                local_current_date = current_date.astimezone(local_tz)
 
-        while current_date <= end_date_utc:
-            local_current_date = current_date.astimezone(local_tz)
+                if local_current_date.hour == 0 and local_current_date.minute == 0:
+                    local_current_date = local_current_date.replace(second=1)
 
-            # Explicitly handle midnight events to align with proper day
-            if local_current_date.hour == 0:
-                local_current_date = local_current_date.replace(minute=0, second=0, microsecond=0)
-
-            # Recalculate week range explicitly per event date
-            event_week_start = local_current_date - timedelta(days=local_current_date.weekday() + 1 % 7)
-            event_week_end = event_week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
-
-            if event_week_start.date() <= local_current_date.date() <= event_week_end.date():
-                if start_date.date() <= local_current_date.date() <= end_date.date():
+                if start_date <= local_current_date <= end_date:
                     instance, _ = ActivityInstance.objects.get_or_create(
                         activity=activity, occurrence_date=current_date
                     )
@@ -161,18 +148,70 @@ def list(self, request, *args, **kwargs):
                         'participants': participants_list,
                     })
 
-            if activity.recurrence == "Daily":
-                current_date += timedelta(days=1)
-            elif activity.recurrence == "Weekly":
-                current_date += timedelta(weeks=1)
-            elif activity.recurrence == "Monthly":
-                month = current_date.month + 1 if current_date.month < 12 else 1
-                year = current_date.year if current_date.month < 12 else current_date.year + 1
-                try:
-                    current_date = current_date.replace(year=year, month=month)
-                except ValueError:
-                    current_date += timedelta(weeks=4)
-            else:
-                break
+                if activity.recurrence == "Daily":
+                    current_date += timedelta(days=1)
+                elif activity.recurrence == "Weekly":
+                    current_date += timedelta(weeks=1)
+                elif activity.recurrence == "Monthly":
+                    month = current_date.month + 1 if current_date.month < 12 else 1
+                    year = current_date.year if current_date.month < 12 else current_date.year + 1
+                    try:
+                        current_date = current_date.replace(year=year, month=month)
+                    except ValueError:
+                        current_date += timedelta(weeks=4)
+                else:
+                    break
 
-    return Response(expanded_activities)
+        return Response(expanded_activities)
+
+    def perform_create(self, serializer):
+        activity = serializer.save()
+        from .models import ActivityInstance
+        ActivityInstance.objects.get_or_create(
+            activity=activity,
+            occurrence_date=activity.date_time
+        )
+ 
+    @action(detail=True, methods=["post"], url_path="signup")
+    def signup(self, request, pk=None):
+        from django.utils.dateparse import parse_datetime
+
+        occurrence_date = request.data.get("occurrence_date")
+        if not occurrence_date:
+            return Response({"error": "occurrence_date is required"}, status=400)
+
+        user = request.user
+        activity = self.get_object()
+
+        parsed_date = parse_datetime(occurrence_date)
+        if not parsed_date:
+            return Response({"error": "Invalid date format"}, status=400)
+
+        instance, _ = ActivityInstance.objects.get_or_create(
+            activity=activity,
+            occurrence_date=parsed_date
+        )
+        instance.participants.add(user)
+        return Response({"status": "signed up"})
+
+    @action(detail=True, methods=["post"], url_path="unregister")
+    def unregister(self, request, pk=None):
+        from django.utils.dateparse import parse_datetime
+
+        occurrence_date = request.data.get("occurrence_date")
+        if not occurrence_date:
+            return Response({"error": "occurrence_date is required"}, status=400)
+
+        user = request.user
+        activity = self.get_object()
+
+        parsed_date = parse_datetime(occurrence_date)
+        if not parsed_date:
+            return Response({"error": "Invalid date format"}, status=400)
+
+        try:
+            instance = ActivityInstance.objects.get(activity=activity, occurrence_date=parsed_date)
+            instance.participants.remove(user)
+            return Response({"status": "unregistered"})
+        except ActivityInstance.DoesNotExist:
+            return Response({"error": "Activity instance not found"}, status=404)
