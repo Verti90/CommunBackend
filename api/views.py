@@ -146,6 +146,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
                         'location': activity.location,
                         'recurrence': activity.recurrence,
                         'participants': participants_list,
+			'capacity': activity.capacity,
                     })
 
                 if activity.recurrence == "Daily":
@@ -196,6 +197,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
             return Response({"error": "Activity is full"}, status=400)
 
         instance.participants.add(user)
+        instance.save()
         return Response({"status": "signed up"})
 
 
