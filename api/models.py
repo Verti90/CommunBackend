@@ -12,14 +12,19 @@ class TransportationRequest(models.Model):
         return f"{self.resident_name} - {self.destination} at {self.pickup_time}"
 
 class MealSelection(models.Model):
-    resident_name = models.CharField(max_length=100)
+    resident = models.ForeignKey(User, on_delete=models.CASCADE)
     meal_time = models.CharField(max_length=10, choices=[('Breakfast', 'Breakfast'), ('Lunch', 'Lunch'), ('Dinner', 'Dinner')])
-    menu_item = models.CharField(max_length=255)
-    special_requests = models.TextField(blank=True, null=True)
+    main_item = models.CharField(max_length=100, blank=True, null=True)
+    protein = models.CharField(max_length=100, blank=True, null=True)
+    drinks = models.TextField(default="")  # comma-separated
+    room_service = models.BooleanField(default=False)
+    guest_name = models.CharField(max_length=100, blank=True, null=True)
+    guest_meal = models.CharField(max_length=100, blank=True, null=True)
+    allergies = models.TextField(default="")  # comma-separated
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.resident_name} - {self.meal_time}"
+        return f"{self.resident.username} - {self.meal_time}"
 
 class Activity(models.Model):
     class RecurrenceChoices(models.TextChoices):
@@ -52,7 +57,7 @@ class ActivityInstance(models.Model):
         return f"{self.activity.name} - {self.occurrence_date}"
 
 class MaintenanceRequest(models.Model):
-    resident_name = models.CharField(max_length=100)
+    resident = models.ForeignKey(User, on_delete=models.CASCADE)
     request_type = models.CharField(max_length=50, choices=[('Maintenance', 'Maintenance'), ('Housekeeping', 'Housekeeping')])
     description = models.TextField()
     status = models.CharField(max_length=20, choices=[('Pending', 'Pending'), ('Completed', 'Completed')], default='Pending')
@@ -85,3 +90,20 @@ class BillingStatement(models.Model):
 
     def __str__(self):
         return f"{self.resident_name} - {self.statement_date}"
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    default_allergies = models.TextField(blank=True, default="")  # comma-separated
+    default_guest_name = models.CharField(max_length=100, blank=True, null=True)
+    default_guest_meal = models.CharField(max_length=100, blank=True, null=True)
+
+    def __str__(self):
+        return f"Profile for {self.user.username}"
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.create(user=instance)

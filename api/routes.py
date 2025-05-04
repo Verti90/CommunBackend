@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     TransportationRequestViewSet, MealSelectionViewSet, ActivityViewSet,
     MaintenanceRequestViewSet, AlertViewSet, WellnessReminderViewSet,
-    BillingStatementViewSet, UserViewSet, RegisterView, ProfileView
+    BillingStatementViewSet, UserViewSet, RegisterView, ProfileView, UserProfileView
 )
 from .auth_views import login_view  # ✅ Fixed import
 
@@ -22,4 +22,5 @@ urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', login_view, name='login'),
     path('profile/', ProfileView.as_view(), name='profile'),
+    path('profile/preferences/', UserProfileView.as_view(), name='user-profile-preferences'),
 ]
