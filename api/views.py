@@ -29,6 +29,21 @@ class TransportationRequestViewSet(viewsets.ModelViewSet):
     serializer_class = TransportationRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+from rest_framework import permissions, viewsets
+from .models import DailyMenu
+from .serializers import DailyMenuSerializer
+
+class DailyMenuViewSet(viewsets.ModelViewSet):
+    queryset = DailyMenu.objects.all()
+    serializer_class = DailyMenuSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return DailyMenu.objects.all()
+        return DailyMenu.objects.none()  # Prevent residents from seeing or posting
+
 class MealSelectionViewSet(viewsets.ModelViewSet):
     queryset = MealSelection.objects.all()
     serializer_class = MealSelectionSerializer

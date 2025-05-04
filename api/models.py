@@ -11,6 +11,27 @@ class TransportationRequest(models.Model):
     def __str__(self):
         return f"{self.resident_name} - {self.destination} at {self.pickup_time}"
 
+class DailyMenu(models.Model):
+    MEAL_TYPE_CHOICES = [
+        ('Breakfast', 'Breakfast'),
+        ('Lunch', 'Lunch'),
+        ('Dinner', 'Dinner'),
+    ]
+
+    meal_type = models.CharField(max_length=10, choices=MEAL_TYPE_CHOICES)
+    date = models.DateField()
+    items = models.TextField(help_text="Comma-separated list of menu items")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        unique_together = ['meal_type', 'date']
+
+    def __str__(self):
+        return f"{self.meal_type} - {self.date}"
+
+    def item_list(self):
+        return self.items.split(",") if self.items else []
+
 class MealSelection(models.Model):
     resident = models.ForeignKey(User, on_delete=models.CASCADE)
     meal_time = models.CharField(max_length=10, choices=[('Breakfast', 'Breakfast'), ('Lunch', 'Lunch'), ('Dinner', 'Dinner')])

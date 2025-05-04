@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     TransportationRequest, MealSelection, Activity,
-    MaintenanceRequest, Alert, WellnessReminder, BillingStatement
+    MaintenanceRequest, Alert, WellnessReminder, BillingStatement, DailyMenu, MealSelection, UserProfile
 )
 from django.contrib.auth.models import User
 from django.utils.timezone import is_naive
@@ -61,6 +61,25 @@ class BillingStatementSerializer(serializers.ModelSerializer):
     class Meta:
         model = BillingStatement
         fields = '__all__'
+
+class DailyMenuSerializer(serializers.ModelSerializer):
+    items = serializers.ListField(child=serializers.CharField())
+
+    class Meta:
+        model = DailyMenu
+        fields = ['id', 'meal_type', 'date', 'items', 'created_by']
+        read_only_fields = ['id', 'created_by']
+
+    def create(self, validated_data):
+        items = validated_data.pop("items", [])
+        validated_data["items"] = ",".join(items)
+        validated_data["created_by"] = self.context["request"].user
+        return super().create(validated_data)
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['items'] = instance.item_list()
+        return rep
 
 class MealSelectionSerializer(serializers.ModelSerializer):
     drinks = serializers.ListField(child=serializers.CharField(), write_only=True)

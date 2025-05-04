@@ -3,12 +3,13 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     TransportationRequestViewSet, MealSelectionViewSet, ActivityViewSet,
     MaintenanceRequestViewSet, AlertViewSet, WellnessReminderViewSet,
-    BillingStatementViewSet, UserViewSet, RegisterView, ProfileView, UserProfileView
+    BillingStatementViewSet, UserViewSet, RegisterView, ProfileView, UserProfileView, DailyMenuViewSet
 )
 from .auth_views import login_view  # ✅ Fixed import
 
 router = DefaultRouter()
 router.register(r'transportation', TransportationRequestViewSet)
+router.register(r'daily-menus', DailyMenuViewSet, basename='daily-menus')
 router.register(r'meals', MealSelectionViewSet)
 router.register(r'activities', ActivityViewSet, basename='activity')
 router.register(r'maintenance', MaintenanceRequestViewSet)
