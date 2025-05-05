@@ -4,7 +4,7 @@ from .models import (
     MaintenanceRequest, Alert, WellnessReminder, BillingStatement, DailyMenu, MealSelection, UserProfile
 )
 from django.contrib.auth.models import User
-from django.utils.timezone import is_naive
+from django.utils.timezone import is_naive, make_aware
 from pytz import timezone as pytz_timezone, utc
 
 class UserSerializer(serializers.ModelSerializer):
@@ -34,9 +34,9 @@ class TransportationRequestSerializer(serializers.ModelSerializer):
 class ActivitySerializer(serializers.ModelSerializer):
     def validate_date_time(self, value):
         if is_naive(value):
-            local_tz = pytz.timezone('America/Chicago')  # Explicitly your timezone
+            local_tz = pytz_timezone('America/Chicago')
             value = make_aware(value, local_tz)
-        return value.astimezone(pytz.utc)
+        return value.astimezone(utc)
 
     class Meta:
         model = Activity
