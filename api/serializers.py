@@ -40,7 +40,7 @@ class ActivitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Activity
-        fields = '__all__'
+        fields = ['id', 'name', 'date_time', 'location', 'participants', 'recurrence', 'capacity']
 
 class MaintenanceRequestSerializer(serializers.ModelSerializer):
     class Meta:

@@ -178,7 +178,6 @@ class ActivityViewSet(viewsets.ModelViewSet):
                     expanded_activities.append({
                         'id': activity.id,
                         'name': activity.name,
-                        'description': activity.description,
                         'date_time': local_current_date.isoformat(),
                         'location': activity.location,
                         'recurrence': activity.recurrence,
