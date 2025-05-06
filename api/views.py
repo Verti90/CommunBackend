@@ -40,9 +40,13 @@ class DailyMenuViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
-            return DailyMenu.objects.all()
-        return DailyMenu.objects.none()
+        if not user.is_staff:
+            return DailyMenu.objects.none()
+
+        date = self.request.query_params.get('date')
+        if date:
+            return DailyMenu.objects.filter(date=date)
+        return DailyMenu.objects.all()
 
     def create(self, request, *args, **kwargs):
         date = request.data.get('date')
