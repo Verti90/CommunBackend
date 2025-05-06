@@ -65,23 +65,27 @@ class DailyMenuViewSet(viewsets.ModelViewSet):
         menu = self.get_object()
         item_index = request.data.get('item_index')
 
-        if item_index is not None:
-            try:
-                item_index = int(item_index)
-                if 0 <= item_index < len(menu.items):
-                    menu.items.pop(item_index)
-                    if menu.items:
-                        menu.save()
-                        return Response({'status': 'Item removed'}, status=status.HTTP_200_OK)
-                    else:
-                        menu.delete()
-                        return Response({'status': 'Menu deleted'}, status=status.HTTP_204_NO_CONTENT)
-                else:
-                    return Response({'error': 'Invalid index'}, status=status.HTTP_400_BAD_REQUEST)
-            except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        else:
+        if item_index is None:
             return super().destroy(request, *args, **kwargs)
+
+        try:
+            item_index = int(item_index)
+            if not (0 <= item_index < len(menu.items)):
+                return Response({'error': 'Invalid index'}, status=status.HTTP_400_BAD_REQUEST)
+
+            menu.items.pop(item_index)
+
+            if menu.items:
+                menu.save()
+                return Response({'status': 'Item removed'}, status=status.HTTP_200_OK)
+            else:
+                menu.delete()
+                return Response({'status': 'Menu deleted'}, status=status.HTTP_200_OK)
+
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid item index.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class MealSelectionViewSet(viewsets.ModelViewSet):
     queryset = MealSelection.objects.all()
