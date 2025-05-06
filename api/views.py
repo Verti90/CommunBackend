@@ -40,13 +40,18 @@ class DailyMenuViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if not user.is_staff:
-            return DailyMenu.objects.none()
-
         date = self.request.query_params.get('date')
+
+        qs = DailyMenu.objects.all()
+
+        if not user.is_staff:
+            from django.utils.timezone import now
+            qs = qs.filter(date__gte=now().date())
+
         if date:
-            return DailyMenu.objects.filter(date=date)
-        return DailyMenu.objects.all()
+            qs = qs.filter(date=date)
+
+        return qs
 
     def create(self, request, *args, **kwargs):
         date = request.data.get('date')
@@ -100,19 +105,56 @@ class MealSelectionViewSet(viewsets.ModelViewSet):
         serializer.save(resident=self.request.user)
 
     def get_queryset(self):
-        if self.request.user.is_staff:
+        user = self.request.user
+        if user.is_staff:
             return MealSelection.objects.all()
-        return MealSelection.objects.filter(resident=self.request.user)
+        return MealSelection.objects.filter(resident=user)
 
     @action(detail=False, methods=["get"], url_path="upcoming")
     def upcoming(self, request):
         today = now().date()
         user = request.user
-        selections = MealSelection.objects.filter(
-            resident=user,
-            created_at__date__gte=today
-        ).order_by('created_at')
+
+        if user.is_staff:
+            selections = MealSelection.objects.filter(
+                created_at__date__gte=today
+            ).order_by('created_at')
+        else:
+            selections = MealSelection.objects.filter(
+                resident=user,
+                created_at__date__gte=today
+            ).order_by('created_at')
+
         serializer = self.get_serializer(selections, many=True)
+        return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user = request.user
+
+        if not user.is_staff and instance.resident != user:
+            return Response(
+                {"error": "You are not authorized to delete this meal selection."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        self.perform_destroy(instance)
+        return Response({"status": "Selection canceled"}, status=status.HTTP_200_OK)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user = request.user
+
+        if not user.is_staff and instance.resident != user:
+            return Response(
+                {"error": "You are not authorized to update this meal selection."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        partial = kwargs.pop('partial', False)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(serializer.data)
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
