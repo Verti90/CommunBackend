@@ -20,7 +20,8 @@ class DailyMenu(models.Model):
 
     meal_type = models.CharField(max_length=10, choices=MEAL_TYPE_CHOICES)
     date = models.DateField()
-    items = models.TextField(help_text="Comma-separated list of menu items")
+    items = models.JSONField(default=list, blank=True, help_text="List of menu items")
+
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
 
     class Meta:

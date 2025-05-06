@@ -71,15 +71,8 @@ class DailyMenuSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_by']
 
     def create(self, validated_data):
-        items = validated_data.pop("items", [])
-        validated_data["items"] = ",".join(items)
         validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)
-
-    def to_representation(self, instance):
-        rep = super().to_representation(instance)
-        rep['items'] = instance.item_list()
-        return rep
 
 class MealSelectionSerializer(serializers.ModelSerializer):
     drinks = serializers.ListField(child=serializers.CharField(), write_only=True)
@@ -119,11 +112,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['default_allergies', 'default_guest_name', 'default_guest_meal']
-
-    def to_representation(self, instance):
-        rep = super().to_representation(instance)
-        rep['default_allergies'] = instance.default_allergies.split(",") if instance.default_allergies else []
-        return rep
 
     def to_internal_value(self, data):
         val = super().to_internal_value(data)

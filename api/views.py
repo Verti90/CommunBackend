@@ -42,7 +42,46 @@ class DailyMenuViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_staff:
             return DailyMenu.objects.all()
-        return DailyMenu.objects.none()  # Prevent residents from seeing or posting
+        return DailyMenu.objects.none()
+
+    def create(self, request, *args, **kwargs):
+        date = request.data.get('date')
+        meal_type = request.data.get('meal_type')
+        new_items = request.data.get('items', [])
+
+        if not (date and meal_type and isinstance(new_items, list)):
+            return Response({'error': 'Missing required fields.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            existing = DailyMenu.objects.get(date=date, meal_type=meal_type)
+            existing.items.extend([item for item in new_items if item not in existing.items])
+            existing.save()
+            serializer = self.get_serializer(existing)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except DailyMenu.DoesNotExist:
+            return super().create(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        menu = self.get_object()
+        item_index = request.data.get('item_index')
+
+        if item_index is not None:
+            try:
+                item_index = int(item_index)
+                if 0 <= item_index < len(menu.items):
+                    menu.items.pop(item_index)
+                    if menu.items:
+                        menu.save()
+                        return Response({'status': 'Item removed'}, status=status.HTTP_200_OK)
+                    else:
+                        menu.delete()
+                        return Response({'status': 'Menu deleted'}, status=status.HTTP_204_NO_CONTENT)
+                else:
+                    return Response({'error': 'Invalid index'}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return super().destroy(request, *args, **kwargs)
 
 class MealSelectionViewSet(viewsets.ModelViewSet):
     queryset = MealSelection.objects.all()
