@@ -1,7 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from django.utils.timezone import make_aware, is_naive
+from django.utils.timezone import make_aware, is_naive, now
 from datetime import datetime, timedelta
 from django.contrib.auth.models import User
 from django.shortcuts import render
@@ -98,6 +98,22 @@ class MealSelectionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(resident=self.request.user)
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return MealSelection.objects.all()
+        return MealSelection.objects.filter(resident=self.request.user)
+
+    @action(detail=False, methods=["get"], url_path="upcoming")
+    def upcoming(self, request):
+        today = now().date()
+        user = request.user
+        selections = MealSelection.objects.filter(
+            resident=user,
+            created_at__date__gte=today
+        ).order_by('created_at')
+        serializer = self.get_serializer(selections, many=True)
+        return Response(serializer.data)
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
