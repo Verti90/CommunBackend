@@ -64,15 +64,32 @@ class BillingStatementSerializer(serializers.ModelSerializer):
 
 class DailyMenuSerializer(serializers.ModelSerializer):
     items = serializers.ListField(child=serializers.CharField())
+    categorized_items = serializers.SerializerMethodField()
 
     class Meta:
         model = DailyMenu
-        fields = ['id', 'meal_type', 'date', 'items', 'created_by']
+        fields = ['id', 'meal_type', 'date', 'items', 'categorized_items', 'created_by']
         read_only_fields = ['id', 'created_by']
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)
+
+    def get_categorized_items(self, obj):
+        from collections import defaultdict
+        result = defaultdict(dict)
+
+        for item in obj.items:
+            try:
+                parts = item.split(":")
+                header = parts[0].strip()  # e.g., "Main Course Option A"
+                value = parts[1].strip()   # e.g., "Eggs"
+                category, option = header.rsplit(" Option ", 1)
+                result[category][option] = value
+            except Exception:
+                continue
+
+        return result
 
 class MealSelectionSerializer(serializers.ModelSerializer):
     drinks = serializers.ListField(child=serializers.CharField(), write_only=True)
