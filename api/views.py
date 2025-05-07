@@ -102,7 +102,23 @@ class MealSelectionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(resident=self.request.user)
+        user = self.request.user
+        meal_time = serializer.validated_data.get("meal_time")
+
+        # Only check for today's meal (can be expanded for date-specific logic)
+        today = now().date()
+        existing = MealSelection.objects.filter(
+            resident=user,
+            meal_time=meal_time,
+            created_at__date=today
+        ).exists()
+
+        if existing:
+            raise serializers.ValidationError(
+                { "meal_time": f"You have already submitted a {meal_time} selection today." }
+            )
+
+        serializer.save(resident=user)
 
     def get_queryset(self):
         user = self.request.user
