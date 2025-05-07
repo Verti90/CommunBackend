@@ -80,6 +80,12 @@ class MealSelectionSerializer(serializers.ModelSerializer):
     drinks_display = serializers.SerializerMethodField()
     allergies_display = serializers.SerializerMethodField()
 
+    def validate_meal_time(self, value):
+        allowed = ['Breakfast', 'Lunch', 'Dinner']
+        if value not in allowed:
+            raise serializers.ValidationError(f"meal_time must be one of {allowed}")
+        return value
+
     class Meta:
         model = MealSelection
         fields = [
@@ -89,7 +95,7 @@ class MealSelectionSerializer(serializers.ModelSerializer):
             'allergies', 'allergies_display',
             'created_at'
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'created_at', 'resident']
 
     def get_drinks_display(self, obj):
         return obj.drinks.split(",") if obj.drinks else []
