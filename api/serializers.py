@@ -91,11 +91,19 @@ class DailyMenuSerializer(serializers.ModelSerializer):
 
         return result
 
+class CommaSeparatedListField(serializers.Field):
+    def to_representation(self, value):
+        return value.split(",") if value else []
+
+    def to_internal_value(self, data):
+        if isinstance(data, list):
+            return ",".join(data)
+        raise serializers.ValidationError("Expected a list of strings.")
+
+
 class MealSelectionSerializer(serializers.ModelSerializer):
-    drinks = serializers.ListField(child=serializers.CharField(), write_only=True)
-    allergies = serializers.ListField(child=serializers.CharField(), write_only=True)
-    drinks_display = serializers.SerializerMethodField()
-    allergies_display = serializers.SerializerMethodField()
+    drinks = CommaSeparatedListField()
+    allergies = CommaSeparatedListField()
 
     def validate_meal_time(self, value):
         allowed = ['Breakfast', 'Lunch', 'Dinner']
@@ -107,27 +115,12 @@ class MealSelectionSerializer(serializers.ModelSerializer):
         model = MealSelection
         fields = [
             'id', 'resident', 'meal_time', 'main_item', 'protein',
-            'drinks', 'drinks_display',
+            'drinks',
             'room_service', 'guest_name', 'guest_meal',
-            'allergies', 'allergies_display',
+            'allergies',
             'created_at'
         ]
         read_only_fields = ['id', 'created_at', 'resident']
-
-    def get_drinks_display(self, obj):
-        return obj.drinks.split(",") if obj.drinks else []
-
-    def get_allergies_display(self, obj):
-        return obj.allergies.split(",") if obj.allergies else []
-
-    def create(self, validated_data):
-        drinks = validated_data.pop("drinks", [])
-        allergies = validated_data.pop("allergies", [])
-        validated_data["drinks"] = ",".join(drinks)
-        validated_data["allergies"] = ",".join(allergies)
-        return super().create(validated_data)
-
-from .models import UserProfile
 
 class UserProfileSerializer(serializers.ModelSerializer):
     default_allergies = serializers.ListField(child=serializers.CharField(), required=False)
