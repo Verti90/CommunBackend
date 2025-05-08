@@ -29,7 +29,6 @@ class TransportationRequestViewSet(viewsets.ModelViewSet):
     serializer_class = TransportationRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-from rest_framework import permissions, viewsets
 from .models import DailyMenu
 from .serializers import DailyMenuSerializer
 
@@ -42,16 +41,14 @@ class DailyMenuViewSet(viewsets.ModelViewSet):
         user = self.request.user
         date = self.request.query_params.get('date')
 
-        qs = DailyMenu.objects.all()
+        if date:
+            return DailyMenu.objects.filter(date=date)
 
         if not user.is_staff:
             from django.utils.timezone import now
-            qs = qs.filter(date__gte=now().date())
+            return DailyMenu.objects.filter(date__gte=now().date())
 
-        if date:
-            qs = qs.filter(date=date)
-
-        return qs
+        return DailyMenu.objects.all()
 
     def create(self, request, *args, **kwargs):
         date = request.data.get('date')
