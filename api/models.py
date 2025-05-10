@@ -117,6 +117,7 @@ class UserProfile(models.Model):
     default_allergies = models.TextField(blank=True, default="")  # comma-separated
     default_guest_name = models.CharField(max_length=100, blank=True, null=True)
     default_guest_meal = models.CharField(max_length=100, blank=True, null=True)
+    room_number = models.CharField(max_length=20, blank=True, null=True) 
 
     def __str__(self):
         return f"Profile for {self.user.username}"
