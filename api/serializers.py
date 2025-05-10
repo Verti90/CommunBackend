@@ -124,13 +124,24 @@ class MealSelectionSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     default_allergies = serializers.ListField(child=serializers.CharField(), required=False)
-    
+    room_number = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+
     class Meta:
         model = UserProfile
-        fields = ['default_allergies', 'default_guest_name', 'default_guest_meal']
+        fields = ['default_allergies', 'default_guest_name', 'default_guest_meal', 'room_number']
 
     def to_internal_value(self, data):
         val = super().to_internal_value(data)
-        if isinstance(val.get('default_allergies'), list):
-            val['default_allergies'] = ",".join(val['default_allergies'])
+
+        # Only convert if it's actually a list; otherwise skip
+        if isinstance(data.get('default_allergies'), list):
+            val['default_allergies'] = ",".join(data['default_allergies'])
+        elif isinstance(data.get('default_allergies'), str):
+            val['default_allergies'] = data['default_allergies']
+
         return val
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['default_allergies'] = instance.default_allergies.split(",") if instance.default_allergies else []
+        return ret

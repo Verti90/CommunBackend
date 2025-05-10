@@ -205,6 +205,14 @@ class RegisterView(APIView):
             user = serializer.save()
             user.set_password(request.data['password'])
             user.save()
+
+            # Save room number if provided
+            room_number = request.data.get("room_number")
+            if room_number:
+                profile, _ = UserProfile.objects.get_or_create(user=user)
+                profile.room_number = room_number
+                profile.save()
+
             return Response({'status': 'user created'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -245,6 +253,13 @@ class UserProfileView(APIView):
 
     def post(self, request):
         profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        user = request.user
+
+        email = request.data.get('email')
+        if email:
+            user.email = email
+            user.save()
+
         serializer = UserProfileSerializer(profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -255,8 +270,14 @@ class ProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        from .models import UserProfile
+        from .serializers import UserProfileSerializer
+
+        user_data = UserSerializer(request.user).data
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        profile_data = UserProfileSerializer(profile).data
+
+        return Response({**user_data, **profile_data}, status=status.HTTP_200_OK)
 
 class ActivityViewSet(viewsets.ModelViewSet):
     queryset = Activity.objects.all()
