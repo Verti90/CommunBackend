@@ -8,15 +8,18 @@ from django.utils.timezone import is_naive, make_aware
 from pytz import timezone as pytz_timezone, utc
 
 class UserSerializer(serializers.ModelSerializer):
+    room_number = serializers.CharField(write_only=True, required=False)
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'password']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'password', 'is_staff', 'room_number']
         extra_kwargs = {
             'password': {'write_only': True},
             'is_staff': {'read_only': True},
         }
 
     def create(self, validated_data):
+        room_number = validated_data.pop('room_number', None)
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
@@ -24,6 +27,13 @@ class UserSerializer(serializers.ModelSerializer):
             last_name=validated_data['last_name'],
             password=validated_data['password']
         )
+
+        if room_number:
+            from .models import UserProfile
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            profile.room_number = room_number
+            profile.save()
+
         return user
 
 class TransportationRequestSerializer(serializers.ModelSerializer):

@@ -196,23 +196,19 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import UserSerializer
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
-            user.set_password(request.data['password'])
-            user.save()
-
-            # Save room number if provided
-            room_number = request.data.get("room_number")
-            if room_number:
-                profile, _ = UserProfile.objects.get_or_create(user=user)
-                profile.room_number = room_number
-                profile.save()
-
+            serializer.save()
             return Response({'status': 'user created'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
