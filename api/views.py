@@ -9,6 +9,7 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny
+from django.db import models
 import pytz
 from pytz import utc
 
@@ -25,10 +26,55 @@ from .serializers import (
 def backend_home(request):
     return render(request, 'backend_home.html')
 
+from datetime import datetime
+
 class TransportationRequestViewSet(viewsets.ModelViewSet):
     queryset = TransportationRequest.objects.all()
     serializer_class = TransportationRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        data = request.data
+        time_str = data.get('pickup_time') or data.get('appointment_time')
+        if not time_str:
+            return Response({'error': 'Time is required.'}, status=400)
+
+        try:
+            dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+        except ValueError:
+            return Response({'error': 'Invalid time format.'}, status=400)
+
+        block_start = dt.replace(hour=(dt.hour // 2) * 2, minute=0, second=0, microsecond=0)
+        from datetime import timedelta
+        block_end = block_start + timedelta(hours=2)
+
+        same_block = TransportationRequest.objects.filter(
+            ~models.Q(status='Cancelled'),
+        ).filter(
+            models.Q(appointment_time__startswith=dt.date().isoformat()) |
+            models.Q(pickup_time__startswith=dt.date().isoformat())
+        )
+
+        # In-memory filtering because appointment_time/pickup_time are CharFields
+        count = 0
+        for req in same_block:
+            t = req.pickup_time or req.appointment_time
+            if not t:
+                continue
+            try:
+                rdt = datetime.fromisoformat(t.replace('Z', '+00:00'))
+                if block_start <= rdt < block_end:
+                    count += 1
+            except Exception:
+                continue
+
+        if count >= 2:
+            return Response(
+                {'error': f'Time block {block_start.strftime("%I:%M %p")} – {block_end.strftime("%I:%M %p")} is full.'},
+                status=400
+            )
+
+        return super().create(request, *args, **kwargs)
 
 from .models import DailyMenu
 from .serializers import DailyMenuSerializer
