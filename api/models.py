@@ -48,7 +48,7 @@ class TransportationRequest(models.Model):
     doctor_name = models.CharField(max_length=100, blank=True, null=True)
     appointment_time = models.CharField(max_length=100, blank=True, null=True)
     destination_name = models.CharField(max_length=255, blank=True, null=True)
-    pickup_time = models.CharField(max_length=100)
+    pickup_time = models.CharField(max_length=100, blank=True, null=True)
     address = models.CharField(max_length=255, blank=True, null=True)
     status = models.CharField(max_length=20, choices=RequestStatus.choices, default=RequestStatus.PENDING)
     staff_comment = models.TextField(blank=True, null=True)
