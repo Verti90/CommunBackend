@@ -53,6 +53,7 @@ class TransportationRequest(models.Model):
     status = models.CharField(max_length=20, choices=RequestStatus.choices, default=RequestStatus.PENDING)
     staff_comment = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-created_at']
