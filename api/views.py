@@ -176,6 +176,15 @@ class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     serializer_class = MaintenanceRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def update(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return Response(
+                {"error": "Only staff can update maintenance requests."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return super().update(request, *args, **kwargs)
+
 class AlertViewSet(viewsets.ModelViewSet):
     queryset = Alert.objects.all()
     serializer_class = AlertSerializer
