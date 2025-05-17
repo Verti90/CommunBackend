@@ -1,20 +1,21 @@
 from django.contrib.auth import authenticate
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth.models import User
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def login_view(request):
     username = request.data.get("username")
     password = request.data.get("password")
-    print("Attempting backend login with username:", username)
+    print("🔐 Attempting login for:", username)
 
     user = authenticate(username=username, password=password)
     if user is not None:
         refresh = RefreshToken.for_user(user)
-        print("Backend login successful for user:", user.username)
+        print("✅ Login successful:", user.username)
         return Response({
             "token": {
                 "access": str(refresh.access_token),
@@ -24,9 +25,9 @@ def login_view(request):
                 "id": user.id,
                 "email": user.email,
                 "username": user.username,
-		"role": "staff" if user.is_staff else "resident"
+                "role": "staff" if user.is_staff else "resident"
             }
-        })
+        }, status=status.HTTP_200_OK)
     else:
-        print("Backend login failed for username:", username)
-        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        print("❌ Login failed for:", username)
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
