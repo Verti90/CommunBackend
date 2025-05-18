@@ -15,12 +15,12 @@ from pytz import utc
 
 from .models import (
     TransportationRequest, MealSelection, Activity, MaintenanceRequest,
-    Alert, WellnessReminder, BillingStatement, ActivityInstance
+    Alert, WellnessReminder, BillingStatement, ActivityInstance, Feed
 )
 from .serializers import (
     TransportationRequestSerializer, MealSelectionSerializer, ActivitySerializer,
     MaintenanceRequestSerializer, AlertSerializer, WellnessReminderSerializer,
-    BillingStatementSerializer, UserSerializer
+    BillingStatementSerializer, UserSerializer, FeedSerializer
 )
 
 def backend_home(request):
@@ -425,3 +425,18 @@ class ActivityViewSet(viewsets.ModelViewSet):
             return Response({"status": "unregistered"})
         except ActivityInstance.DoesNotExist:
             return Response({"error": "Activity instance not found"}, status=404)
+        
+class FeedViewSet(viewsets.ModelViewSet):
+    queryset = Feed.objects.all().order_by('-created_at')
+    serializer_class = FeedSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_staff:
+            raise serializers.ValidationError("Only staff can post announcements.")
+        serializer.save(created_by=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return Response({"error": "Only staff can delete announcements."}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)

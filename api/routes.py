@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     TransportationRequestViewSet, MealSelectionViewSet, ActivityViewSet,
     MaintenanceRequestViewSet, AlertViewSet, WellnessReminderViewSet,
-    BillingStatementViewSet, UserViewSet, RegisterView, ProfileView, UserProfileView, DailyMenuViewSet
+    BillingStatementViewSet, UserViewSet, RegisterView, ProfileView, UserProfileView, DailyMenuViewSet,FeedViewSet
 )
 from .auth_views import login_view  # ✅ Fixed import
 
@@ -17,6 +17,7 @@ router.register(r'alerts', AlertViewSet)
 router.register(r'wellness', WellnessReminderViewSet)
 router.register(r'billing', BillingStatementViewSet)
 router.register(r'users', UserViewSet)
+router.register(r'feed', FeedViewSet, basename='feed')
 
 urlpatterns = [
     path('', include(router.urls)),

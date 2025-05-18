@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     TransportationRequest, MealSelection, Activity,
-    MaintenanceRequest, Alert, WellnessReminder, BillingStatement, DailyMenu, MealSelection, UserProfile
+    MaintenanceRequest, Alert, WellnessReminder, BillingStatement, DailyMenu, MealSelection, UserProfile, Feed
 )
 from django.contrib.auth.models import User
 from django.utils.timezone import is_naive, make_aware
@@ -155,3 +155,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret['default_allergies'] = instance.default_allergies.split(",") if instance.default_allergies else []
         return ret
+    
+class FeedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Feed
+        fields = ['id', 'title', 'content', 'created_by', 'created_at']
+        read_only_fields = ['id', 'created_by', 'created_at'] 
