@@ -160,4 +160,33 @@ class FeedSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feed
         fields = ['id', 'title', 'content', 'created_by', 'created_at']
-        read_only_fields = ['id', 'created_by', 'created_at'] 
+        read_only_fields = ['id', 'created_by', 'created_at']
+
+class MealReportSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source='resident.get_full_name')
+    room_number = serializers.CharField(source='resident.userprofile.room_number')
+    drinks = CommaSeparatedListField()
+    allergies = CommaSeparatedListField()
+
+    class Meta:
+        model = MealSelection
+        fields = [
+            'meal_time', 'main_item', 'protein', 'drinks',
+            'room_service', 'guest_name', 'guest_meal', 'allergies',
+            'name', 'room_number'
+        ]
+
+class ActivityReportSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    date_time = serializers.DateTimeField()
+    location = serializers.CharField()
+    participants = serializers.SerializerMethodField()
+
+    def get_participants(self, obj):
+        return [
+            {
+                'name': f"{user.first_name} {user.last_name}".strip(),
+                'room_number': getattr(user.userprofile, 'room_number', 'N/A')
+            }
+            for user in obj['instance'].participants.all()
+        ]

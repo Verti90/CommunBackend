@@ -1,26 +1,31 @@
-from rest_framework import viewsets, permissions, status
-from rest_framework import serializers
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from django.utils.timezone import make_aware, is_naive, now
-from datetime import datetime, timedelta
-from django.contrib.auth.models import User
-from django.shortcuts import render
-from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import AllowAny
-from django.db import models
 import pytz
 from pytz import utc
+from datetime import datetime, timedelta
+
+from django.db import models
+from django.shortcuts import render
+from django.utils.timezone import make_aware, is_naive, now
+from django.contrib.auth.models import User
+
+from rest_framework import viewsets, permissions, status, serializers
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.decorators import action, api_view, permission_classes
 
 from .models import (
     TransportationRequest, MealSelection, Activity, MaintenanceRequest,
-    Alert, WellnessReminder, BillingStatement, ActivityInstance, Feed
+    Alert, WellnessReminder, BillingStatement, ActivityInstance, Feed,
+    DailyMenu, UserProfile
 )
+
 from .serializers import (
     TransportationRequestSerializer, MealSelectionSerializer, ActivitySerializer,
     MaintenanceRequestSerializer, AlertSerializer, WellnessReminderSerializer,
-    BillingStatementSerializer, UserSerializer, FeedSerializer
+    BillingStatementSerializer, UserSerializer, FeedSerializer,
+    DailyMenuSerializer, UserProfileSerializer,
+    MealReportSerializer, ActivityReportSerializer
 )
 
 def backend_home(request):
@@ -440,3 +445,50 @@ class FeedViewSet(viewsets.ModelViewSet):
         if not request.user.is_staff:
             return Response({"error": "Only staff can delete announcements."}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
+    
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def meal_report_view(request):
+    date_str = request.query_params.get('date')
+    if not date_str:
+        return Response({'error': 'Missing date'}, status=400)
+
+    try:
+        selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return Response({'error': 'Invalid date format'}, status=400)
+
+    selections = MealSelection.objects.filter(created_at__date=selected_date)
+    data = MealReportSerializer(selections, many=True).data
+    return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def activity_report_view(request):
+    date_str = request.query_params.get('date')
+    if not date_str:
+        return Response({'error': 'Missing date'}, status=400)
+
+    try:
+        local_tz = pytz.timezone('America/Chicago')
+        selected_date = make_aware(datetime.strptime(date_str, '%Y-%m-%d'), local_tz)
+    except ValueError:
+        return Response({'error': 'Invalid date format'}, status=400)
+
+    start = selected_date.replace(hour=0, minute=0, second=0)
+    end = selected_date.replace(hour=23, minute=59, second=59)
+
+    instances = ActivityInstance.objects.select_related('activity').filter(
+        occurrence_date__range=(start, end)
+    )
+
+    report_data = [{
+        'name': inst.activity.name,
+        'date_time': inst.occurrence_date,
+        'location': inst.activity.location,
+        'instance': inst
+    } for inst in instances]
+
+    serialized = ActivityReportSerializer(report_data, many=True).data
+    return Response(serialized)
