@@ -95,6 +95,7 @@ class DailyMenu(models.Model):
 class MealSelection(models.Model):
     resident = models.ForeignKey(User, on_delete=models.CASCADE)
     meal_time = models.CharField(max_length=10, choices=MealType.choices)
+    date = models.DateField(null=True, blank=True)
     main_item = models.CharField(max_length=100, blank=True, null=True)
     protein = models.CharField(max_length=100, blank=True, null=True)
     drinks = models.TextField(default="")  # comma-separated

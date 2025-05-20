@@ -6,6 +6,7 @@ from django.db import models
 from django.shortcuts import render
 from django.utils.timezone import make_aware, is_naive, now
 from django.contrib.auth.models import User
+from django.utils.dateparse import parse_date
 
 from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.views import APIView
@@ -153,21 +154,28 @@ class MealSelectionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         meal_time = serializer.validated_data.get("meal_time")
+        submitted_date = self.request.data.get("date")
 
-        # Only check for today's meal (can be expanded for date-specific logic)
-        today = now().date()
+        try:
+            submitted_date = parse_date(submitted_date)
+        except Exception:
+            submitted_date = now().date()
+
+        if not submitted_date:
+            submitted_date = now().date()
+
         existing = MealSelection.objects.filter(
             resident=user,
             meal_time=meal_time,
-            created_at__date=today
+            date=submitted_date
         ).exists()
 
         if existing:
             raise serializers.ValidationError(
-                { "meal_time": f"You have already submitted a {meal_time} selection today." }
+                { "meal_time": f"You have already submitted a {meal_time} selection for {submitted_date}." }
             )
 
-        serializer.save(resident=user)
+        serializer.save(resident=user, date=submitted_date)
 
     def get_queryset(self):
         user = self.request.user
@@ -182,13 +190,13 @@ class MealSelectionViewSet(viewsets.ModelViewSet):
 
         if user.is_staff:
             selections = MealSelection.objects.filter(
-                created_at__date__gte=today
-            ).order_by('created_at')
+                date__gte=today
+            ).order_by('date')
         else:
             selections = MealSelection.objects.filter(
                 resident=user,
-                created_at__date__gte=today
-            ).order_by('created_at')
+                date__gte=today
+            ).order_by('date')
 
         serializer = self.get_serializer(selections, many=True)
         return Response(serializer.data)
@@ -458,7 +466,7 @@ def meal_report_view(request):
     except ValueError:
         return Response({'error': 'Invalid date format'}, status=400)
 
-    selections = MealSelection.objects.filter(created_at__date=selected_date)
+    selections = MealSelection.objects.filter(date=selected_date)
     data = MealReportSerializer(selections, many=True).data
     return Response(data)
 

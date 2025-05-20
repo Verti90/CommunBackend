@@ -124,7 +124,7 @@ class MealSelectionSerializer(serializers.ModelSerializer):
     class Meta:
         model = MealSelection
         fields = [
-            'id', 'resident', 'meal_time', 'main_item', 'protein',
+            'id', 'resident', 'meal_time', 'date', 'main_item', 'protein',
             'drinks',
             'room_service', 'guest_name', 'guest_meal',
             'allergies',
