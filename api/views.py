@@ -7,6 +7,8 @@ from django.shortcuts import render
 from django.utils.timezone import make_aware, is_naive, now
 from django.contrib.auth.models import User
 from django.utils.dateparse import parse_date
+from django.core.validators import EmailValidator
+from django.core.exceptions import ValidationError
 
 from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.views import APIView
@@ -297,8 +299,12 @@ class UserProfileView(APIView):
 
         email = request.data.get('email')
         if email:
-            user.email = email
-            user.save()
+            try:
+                EmailValidator()(email)
+                user.email = email
+                user.save()
+            except ValidationError:
+                return Response({'error': 'Invalid email format.'}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = UserProfileSerializer(profile, data=request.data, partial=True)
         if serializer.is_valid():

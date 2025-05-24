@@ -6,13 +6,30 @@ from .models import (
 from django.contrib.auth.models import User
 from django.utils.timezone import is_naive, make_aware
 from pytz import timezone as pytz_timezone, utc
+from django.core.validators import RegexValidator, EmailValidator
+from django.contrib.auth.password_validation import validate_password
+from django.utils.html import strip_tags
 
 class UserSerializer(serializers.ModelSerializer):
     room_number = serializers.CharField(write_only=True, required=False)
+    username = serializers.CharField(
+        min_length=3, max_length=30,
+        validators=[
+            RegexValidator(
+                r'^[a-zA-Z0-9_.-]+$', 
+                message='Username may only contain letters, numbers, dots, underscores, and hyphens.'
+            )
+        ]
+    )
+    email = serializers.EmailField(validators=[EmailValidator()])
+    password = serializers.CharField(write_only=True, validators=[validate_password])
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'password', 'is_staff', 'room_number']
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 
+            'password', 'is_staff', 'room_number'
+        ]
         extra_kwargs = {
             'password': {'write_only': True},
             'is_staff': {'read_only': True},
@@ -37,9 +54,31 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 class TransportationRequestSerializer(serializers.ModelSerializer):
+    def validate_resident_name(self, value):
+        return sanitize_text(value)[:100]
+
+    def validate_doctor_name(self, value):
+        return sanitize_text(value)[:100]
+
+    def validate_destination_name(self, value):
+        return sanitize_text(value)[:255]
+
+    def validate_address(self, value):
+        return sanitize_text(value)[:255]
+
+    def validate_staff_comment(self, value):
+        return sanitize_text(value)[:255]
+
     class Meta:
         model = TransportationRequest
         fields = '__all__'
+
+from django.utils.html import strip_tags
+
+def sanitize_text(value):
+    if not isinstance(value, str):
+        return value
+    return strip_tags(value).strip()
 
 class ActivitySerializer(serializers.ModelSerializer):
     def validate_date_time(self, value):
@@ -47,12 +86,27 @@ class ActivitySerializer(serializers.ModelSerializer):
             local_tz = pytz_timezone('America/Chicago')
             value = make_aware(value, local_tz)
         return value.astimezone(utc)
+    
+    def validate_name(self, value):
+        return sanitize_text(value)[:255]
+    
+    def validate_location(self, value):
+        return sanitize_text(value)[:255]
 
     class Meta:
         model = Activity
         fields = ['id', 'name', 'date_time', 'location', 'participants', 'recurrence', 'capacity']
 
 class MaintenanceRequestSerializer(serializers.ModelSerializer):
+    def validate_resident_name(self, value):
+        return sanitize_text(value)[:100]
+    
+    def validate_description(self, value):
+        return sanitize_text(value)[:1000]  # Adjust max length as appropriate
+    
+    def validate_staff_comment(self, value):
+        return sanitize_text(value)[:255]
+
     class Meta:
         model = MaintenanceRequest
         fields = '__all__'
@@ -110,7 +164,6 @@ class CommaSeparatedListField(serializers.Field):
             return ",".join(data)
         raise serializers.ValidationError("Expected a list of strings.")
 
-
 class MealSelectionSerializer(serializers.ModelSerializer):
     drinks = CommaSeparatedListField()
     allergies = CommaSeparatedListField()
@@ -120,6 +173,18 @@ class MealSelectionSerializer(serializers.ModelSerializer):
         if value not in allowed:
             raise serializers.ValidationError(f"meal_time must be one of {allowed}")
         return value
+
+    def validate_main_item(self, value):
+        return sanitize_text(value)[:100]
+
+    def validate_protein(self, value):
+        return sanitize_text(value)[:100]
+
+    def validate_guest_name(self, value):
+        return sanitize_text(value)[:100]
+
+    def validate_guest_meal(self, value):
+        return sanitize_text(value)[:100]
 
     class Meta:
         model = MealSelection
@@ -136,19 +201,26 @@ class UserProfileSerializer(serializers.ModelSerializer):
     default_allergies = serializers.ListField(child=serializers.CharField(), required=False)
     room_number = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
+    def validate_default_guest_name(self, value):
+        return sanitize_text(value)[:100]
+
+    def validate_default_guest_meal(self, value):
+        return sanitize_text(value)[:100]
+
+    def validate_room_number(self, value):
+        return sanitize_text(value)[:20]
+
     class Meta:
         model = UserProfile
         fields = ['default_allergies', 'default_guest_name', 'default_guest_meal', 'room_number']
 
     def to_internal_value(self, data):
         val = super().to_internal_value(data)
-
         # Only convert if it's actually a list; otherwise skip
         if isinstance(data.get('default_allergies'), list):
             val['default_allergies'] = ",".join(data['default_allergies'])
         elif isinstance(data.get('default_allergies'), str):
             val['default_allergies'] = data['default_allergies']
-
         return val
 
     def to_representation(self, instance):
@@ -157,6 +229,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return ret
     
 class FeedSerializer(serializers.ModelSerializer):
+    def validate_title(self, value):
+        return sanitize_text(value)[:200]
+    
+    def validate_content(self, value):
+        return sanitize_text(value)
+    
     class Meta:
         model = Feed
         fields = ['id', 'title', 'content', 'created_by', 'created_at']
