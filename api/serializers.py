@@ -263,6 +263,7 @@ class ActivityReportSerializer(serializers.Serializer):
     def get_participants(self, obj):
         return [
             {
+                'id': user.id,
                 'name': f"{user.first_name} {user.last_name}".strip(),
                 'room_number': getattr(user.userprofile, 'room_number', 'N/A')
             }
