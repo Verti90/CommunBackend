@@ -466,10 +466,37 @@ def meal_report_view(request):
     except ValueError:
         return Response({'error': 'Invalid date format'}, status=400)
 
-    selections = MealSelection.objects.filter(date=selected_date)
-    data = MealReportSerializer(selections, many=True).data
-    return Response(data)
+    from collections import defaultdict
+    from .models import MealSelection, DailyMenu
+    from .serializers import MealReportSerializer
 
+    selections = MealSelection.objects.filter(date=selected_date)
+    menus = DailyMenu.objects.filter(date=selected_date)
+
+    # Build valid item list per meal type
+    valid_items_by_meal = defaultdict(set)
+    for menu in menus:
+        for item in menu.items:
+            try:
+                _, value = item.split(":", 1)
+                valid_items_by_meal[menu.meal_type].add(value.strip())
+            except ValueError:
+                continue
+
+    filtered_selections = []
+    for s in selections:
+        meal_items = valid_items_by_meal.get(s.meal_time, set())
+        drinks = s.drinks.split(",") if s.drinks else []
+
+        if (
+            (s.main_item and s.main_item.strip() in meal_items) or
+            (s.protein and s.protein.strip() in meal_items) or
+            any(d.strip() in meal_items for d in drinks)
+        ):
+            filtered_selections.append(s)
+
+    data = MealReportSerializer(filtered_selections, many=True).data
+    return Response(data)
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
